@@ -1213,14 +1213,27 @@ public class DiscreteSlider extends View {
 		public abstract String getLabel(int input);
 	}
 
-	public static class OnValueChangedListener {
+	public interface OnValueChangedListener {
 
-		// Only called when mode is {@Code MODE_NORMAL}
+		/**
+		 * Only called when mode is {@Code MODE_NORMAL}
+		 */
+		void onValueChanged(int progress);
+
+		/**
+		 * Only called when mode is {@Code MODE_RANGE}
+		 */
+		void onValueChanged(int minProgress, int maxProgress);
+	}
+
+	public static abstract class OnValueChangedAdapterListener implements OnValueChangedListener {
+
+		@Override
 		public void onValueChanged(int progress) {
 
 		}
 
-		// Only called when mode is {@Code MODE_RANGE}
+		@Override
 		public void onValueChanged(int minProgress, int maxProgress) {
 
 		}
