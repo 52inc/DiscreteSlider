@@ -62,13 +62,11 @@ public class MainActivity extends AppCompatActivity {
 
 			@Override
 			public void onValueChanged(int progress) {
-				super.onValueChanged(progress);
 				Log.i("DiscreteSlider", "Progress: " + progress);
 			}
 
 			@Override
 			public void onValueChanged(int minProgress, int maxProgress) {
-				super.onValueChanged(minProgress, maxProgress);
 				Log.i("DiscreteSlider",
 						"MinProgress: " + minProgress + ", MaxProgress: " + maxProgress);
 			}

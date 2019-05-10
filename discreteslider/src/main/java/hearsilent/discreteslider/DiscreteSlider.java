@@ -82,7 +82,7 @@ public class DiscreteSlider extends View {
 	private Path mValueLabelPath = new Path();
 	private ValueAnimator mValueLabelAnimator;
 	private Matrix mValueLabelMatrix = new Matrix();
-	private float mValueLabelAnimValue = 0f;
+	private float mValueLabelAnimValue = 1f;
 	@ValueLabelGravity private int mValueLabelGravity;
 	private boolean mValueLabelVisible = true;
 
@@ -92,6 +92,7 @@ public class DiscreteSlider extends View {
 	@OrientationMode private int mOrientation;
 
 	private OnValueChangedListener mListener;
+	private MoveGestureDetector.OnMoveGestureListener mMoveGestureListener;
 
 	@IntDef({MODE_NORMAL, MODE_RANGE}) @Retention(RetentionPolicy.SOURCE) private @interface Mode {
 
@@ -483,15 +484,20 @@ public class DiscreteSlider extends View {
 		mListener = listener;
 	}
 
+	public void setOnMoveGestureListener(@Nullable MoveGestureDetector.OnMoveGestureListener listener) {
+		mMoveGestureListener = listener;
+	}
+
 	private void generateInactiveTrackPath() {
 		float radius = mTrackWidth / 2f;
 		float left, top, right, bottom;
 		mInactiveTrackPath.reset();
 		if (mOrientation == HORIZONTAL) {
+			mValueLabelPath.computeBounds(mRectF, true);
 			mLength = getWidth() - getPaddingLeft() - getPaddingRight() - mRadius * 2 + mTrackWidth;
 			left = getPaddingLeft() + mRadius - radius;
 			top = ((getHeight() - getPaddingTop() - getPaddingBottom()) - mTrackWidth) / 2f +
-					getPaddingTop();
+					getPaddingTop() + (mRectF.height() / 2f);
 			right = left + mLength;
 			bottom = top + mTrackWidth;
 			if (mTickMarkPatterns != null && mTickMarkPatterns.size() > 0) {
@@ -737,44 +743,44 @@ public class DiscreteSlider extends View {
 				});
 				animator.start();
 
-				float value = mValueLabelAnimValue;
-				if (mValueLabelAnimator != null) {
-					value = mValueLabelAnimator.getAnimatedFraction();
-					mValueLabelAnimator.cancel();
-				}
-
-				if (value > 0) {
-					mValueLabelAnimator = ValueAnimator.ofFloat(value, 0);
-					mValueLabelAnimator.setDuration(Math.round(250 * value));
-					mValueLabelAnimator.setInterpolator(new DecelerateInterpolator());
-					mValueLabelAnimator
-							.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-
-								@Override
-								public void onAnimationUpdate(ValueAnimator animation) {
-									mValueLabelAnimValue = (float) animation.getAnimatedValue();
-									generateValueLabelPath();
-									invalidate();
-								}
-							});
-					mValueLabelAnimator.addListener(new AnimatorListenerAdapter() {
-
-						@Override
-						public void onAnimationEnd(Animator animation) {
-							super.onAnimationEnd(animation);
-							mValueLabelAnimator = null;
-							if (mOffset == 0) {
-								mPaddingPosition = -1;
-								setEnabled(true);
-							}
-
-							invalidate();
-						}
-					});
-					mValueLabelAnimator.start();
-				} else {
-					mValueLabelAnimator = null;
-				}
+//				float value = mValueLabelAnimValue;
+//				if (mValueLabelAnimator != null) {
+//					value = mValueLabelAnimator.getAnimatedFraction();
+//					mValueLabelAnimator.cancel();
+//				}
+//
+//				if (value > 0) {
+//					mValueLabelAnimator = ValueAnimator.ofFloat(value, 0);
+//					mValueLabelAnimator.setDuration(Math.round(250 * value));
+//					mValueLabelAnimator.setInterpolator(new DecelerateInterpolator());
+//					mValueLabelAnimator
+//							.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+//
+//								@Override
+//								public void onAnimationUpdate(ValueAnimator animation) {
+//									mValueLabelAnimValue = (float) animation.getAnimatedValue();
+//									generateValueLabelPath();
+//									invalidate();
+//								}
+//							});
+//					mValueLabelAnimator.addListener(new AnimatorListenerAdapter() {
+//
+//						@Override
+//						public void onAnimationEnd(Animator animation) {
+//							super.onAnimationEnd(animation);
+//							mValueLabelAnimator = null;
+//							if (mOffset == 0) {
+//								mPaddingPosition = -1;
+//								setEnabled(true);
+//							}
+//
+//							invalidate();
+//						}
+//					});
+//					mValueLabelAnimator.start();
+//				} else {
+//					mValueLabelAnimator = null;
+//				}
 			}
 			mPressedPosition = -1;
 		} else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
@@ -835,8 +841,10 @@ public class DiscreteSlider extends View {
 	@Override
 	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
 		if (mOrientation == HORIZONTAL) {
+			generateValueLabelPath();
+			mValueLabelPath.computeBounds(mRectF, true);
 			setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
-					getSize() + getPaddingTop() + getPaddingBottom());
+					(int) (getSize() + getPaddingTop() + getPaddingBottom() + (mRectF.height() * .85f)));
 		} else {
 			setMeasuredDimension(getSize() + getPaddingLeft() + getPaddingRight(),
 					getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
@@ -850,6 +858,7 @@ public class DiscreteSlider extends View {
 	@Override
 	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
 		super.onSizeChanged(w, h, oldw, oldh);
+		generateValueLabelPath();
 		generateInactiveTrackPath();
 		invalidate();
 	}
@@ -860,12 +869,16 @@ public class DiscreteSlider extends View {
 		float length = mLength - mTrackWidth;
 		mPaint.setColor(mInactiveTrackColor);
 		canvas.drawPath(mInactiveTrackPath, mPaint);
+		generateValueLabelPath();
+		mValueLabelPath.computeBounds(mRectF, true);
+		float valueLabelOffset = mRectF.height() / 2f;
 
 		float min, max;
 		mPaint.setColor(mTrackColor);
 		if (mOrientation == HORIZONTAL) {
-			float top = ((getHeight() - getPaddingTop() - getPaddingBottom()) - mTrackWidth) / 2f +
-					getPaddingTop();
+			float top =
+					((getHeight() - getPaddingTop() - getPaddingBottom()) - mTrackWidth) / 2f +
+					getPaddingTop() + valueLabelOffset;
 			float bottom = top + mTrackWidth;
 			if (mMode != MODE_NORMAL && mMaxProgress != -1) {
 				float left = min = getPosition(length, mMinProgress, true) - mTrackWidth / 2f;
@@ -906,7 +919,8 @@ public class DiscreteSlider extends View {
 		}
 
 		float cx = (getWidth() - getPaddingLeft() - getPaddingRight()) / 2f + getPaddingLeft();
-		float cy = (getHeight() - getPaddingTop() - getPaddingBottom()) / 2f + getPaddingTop();
+		float cy =
+				(getHeight() - getPaddingTop() - getPaddingBottom()) / 2f + getPaddingTop() + valueLabelOffset;
 
 		if (mTickMarkPatterns != null && mTickMarkPatterns.size() > 0) {
 			if (mOrientation == HORIZONTAL) {
@@ -977,12 +991,15 @@ public class DiscreteSlider extends View {
 				_cx = cx + (_cx - cx) * mValueLabelAnimValue * ratio;
 			}
 		}
-		if (mPaddingPosition == mMinProgress && mPaddingPosition != -1 && mValueLabelVisible) {
-			mPaint.setColor(mThumbColor);
-			canvas.drawPath(mValueLabelPath, mPaint);
-			canvas.drawCircle(_cx, _cy, mRadius * 3 * mValueLabelAnimValue, mPaint);
-			drawValueLabel(canvas, cx, cy, _cx, _cy, length);
-		}
+//		if (mPaddingPosition == mMinProgress && mPaddingPosition != -1 && mValueLabelVisible) {
+		mPaint.setColor(mThumbColor);
+		int saveCount = canvas.save();
+		canvas.translate(0f, valueLabelOffset);
+		canvas.drawPath(mValueLabelPath, mPaint);
+		canvas.restoreToCount(saveCount);
+		canvas.drawCircle(_cx, _cy, mRadius * 3 * mValueLabelAnimValue, mPaint);
+		drawValueLabel(canvas, cx, cy, _cx, _cy, length);
+//		}
 
 		onDrawThumb(canvas, cx, cy, mPressedPosition != -1 && mPressedPosition == mMinProgress);
 
@@ -1071,7 +1088,20 @@ public class DiscreteSlider extends View {
 	private class MoveListener extends MoveGestureDetector.SimpleOnMoveGestureListener {
 
 		@Override
+		public boolean onMoveBegin(MoveGestureDetector detector) {
+			if (mMoveGestureListener != null) {
+				return mMoveGestureListener.onMoveBegin(detector);
+			} else {
+				return super.onMoveBegin(detector);
+			}
+		}
+
+		@Override
 		public boolean onMove(MoveGestureDetector detector) {
+			if (mMoveGestureListener != null) {
+				mMoveGestureListener.onMove(detector);
+			}
+
 			PointF d = detector.getFocusDelta();
 			if (mOrientation == HORIZONTAL) {
 				mOffset += d.x;
@@ -1083,13 +1113,21 @@ public class DiscreteSlider extends View {
 					mPaddingPosition != -1) {
 				mOffset = Math.min(Math.max(mOffset, mMinOffset), mMaxOffset);
 				generateValueLabelPath();
-				if (Math.abs(mOffset) >= mRadius * 2 && mValueLabelAnimator == null) {
-					animValueLabel();
-				}
+//				if (Math.abs(mOffset) >= mRadius * 2 && mValueLabelAnimator == null) {
+//					animValueLabel();
+//				}
 			} else if (Math.abs(mOffset) >= mRadius * 3.5) {
 				mSkipMove = true;
 			}
 			return true;
+		}
+
+		@Override
+		public void onMoveEnd(MoveGestureDetector detector) {
+			super.onMoveEnd(detector);
+			if (mMoveGestureListener != null) {
+				mMoveGestureListener.onMoveEnd(detector);
+			}
 		}
 	}
 
@@ -1099,18 +1137,18 @@ public class DiscreteSlider extends View {
 		float ratio = mRadius / r2;
 
 		float length = mLength - mTrackWidth;
-		if (mPaddingPosition == mMinProgress || mMaxProgress != -1 && mMode != MODE_NORMAL) {
+//		if (mPaddingPosition == mMinProgress || mMaxProgress != -1 && mMode != MODE_NORMAL) {
 			if (mOrientation == HORIZONTAL) {
 				cy2 = (getHeight() - getPaddingTop() - getPaddingBottom()) / 2f + getPaddingTop();
-				cx2 = getPosition(length, mPaddingPosition, true);
+				cx2 = getPosition(length, getProgress(), true);
 			} else {
 				cy2 = getPosition(length, mPaddingPosition, true);
 				cx2 = (getWidth() - getPaddingLeft() - getPaddingRight()) / 2f + getPaddingLeft();
 			}
-		} else {
-			mValueLabelPath.reset();
-			return;
-		}
+//		} else {
+//			mValueLabelPath.reset();
+//			return;
+//		}
 		cx1 = cx2;
 		cy1 = cy2;
 
